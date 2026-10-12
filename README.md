@@ -31,14 +31,14 @@ kubectl apply -f prometheus/
 ## Replace before using
 
 - `alertmanager/alertmanager.yml`: `<slack-webhook-url>` and `<pagerduty-integration-key>`
-- dashboard datasource is `${DS_PROMETHEUS}` — Grafana prompts on import
+- dashboard datasource is `${DS_PROMETHEUS}` - Grafana prompts on import
 
 ## Tuning notes
 
 Thresholds I settled on after on-call:
 
-- CPU 85% / 10m (warning) — 90% pages too often on bursty batch nodes, 85 catches real saturation.
-- Memory 90% / 10m — memory doesn't lie; if it's pinned at 90 the box is about to OOM something.
+- CPU 85% / 10m (warning) - 90% pages too often on bursty batch nodes, 85 catches real saturation.
+- Memory 90% / 10m  - memory doesn't lie; if it's pinned at 90 the box is about to OOM something.
 - Disk warns at 15% free *and* trending to full in 4h (`predict_linear`). A static threshold alone pages on nodes that sit at 12% free for months.
-- CrashLoop alert needs 3+ restarts in 15m sustained 10m — filters out the single bad deploy that fixes itself on retry.
+- CrashLoop alert needs 3+ restarts in 15m sustained 10m - filters out the single bad deploy that fixes itself on retry.
 - NodeDown inhibits the pod alerts so one dead node doesn't spam.
