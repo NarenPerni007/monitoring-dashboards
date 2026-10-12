@@ -1,0 +1,28 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: recording-rules
+  namespace: monitoring
+  labels:
+    prometheus: kube-prometheus
+    role: alert-rules
+spec:
+  groups:
+  - name: node.recording
+    interval: 1m
+    rules:
+    # pre-aggregated so dashboards and alerts don't recompute this on every eval
+    - record: instance:node_cpu_utilisation:ratio
+      expr: |
+        1 - avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m]))
+
+    - record: instance:node_memory_utilisation:ratio
+      expr: |
+        1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)
+
+  - name: namespace.recording
+    interval: 1m
+    rules:
+    - record: namespace:container_memory_working_set:sum
+      expr: |
+        sum by(namespace) (container_memory_working_set_bytes{container!=""})

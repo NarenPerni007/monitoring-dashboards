@@ -1,0 +1,108 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: base-alerts
+  namespace: monitoring
+  labels:
+    prometheus: kube-prometheus
+    role: alert-rules
+spec:
+  groups:
+  - name: node.rules
+    interval: 30s
+    rules:
+    - alert: NodeDown
+      expr: up{job="node-exporter"} == 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Node {{ $labels.instance }} is down"
+        description: "Node exporter on {{ $labels.instance }} has not scraped for 5 minutes."
+        runbook: "see docs/runbooks/disk-pressure.md"
+
+    - alert: HighCpuLoad
+      # tuned after too many 3am pages on batch boxes
+      expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High CPU on {{ $labels.instance }}"
+        description: "CPU usage above 85% for 10m on {{ $labels.instance }} (current: {{ $value | humanize }}%)."
+
+    - alert: HighMemoryUsage
+      expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 90
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High memory on {{ $labels.instance }}"
+        description: "Memory usage above 90% for 10m on {{ $labels.instance }}."
+
+    - alert: DiskSpaceLow
+      # predict 4h ahead so we catch slow leaks before they page
+      expr: |
+        (
+          node_filesystem_avail_bytes{mountpoint="/",fstype!="rootfs"}
+          /
+          node_filesystem_size_bytes{mountpoint="/",fstype!="rootfs"}
+        ) * 100 < 15
+        and
+        predict_linear(node_filesystem_avail_bytes{mountpoint="/",fstype!="rootfs"}[1h], 4*3600) < 0
+      for: 30m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Disk filling up on {{ $labels.instance }}"
+        description: "Root filesystem on {{ $labels.instance }} under 15% and trending to full in ~4h."
+        runbook: "see docs/runbooks/disk-pressure.md"
+
+    - alert: DiskSpaceCritical
+      expr: |
+        (
+          node_filesystem_avail_bytes{mountpoint="/",fstype!="rootfs"}
+          /
+          node_filesystem_size_bytes{mountpoint="/",fstype!="rootfs"}
+        ) * 100 < 5
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Disk critically low on {{ $labels.instance }}"
+        description: "Root filesystem on {{ $labels.instance }} under 5% free."
+        runbook: "see docs/runbooks/disk-pressure.md"
+
+  - name: kubernetes-apps.rules
+    interval: 30s
+    rules:
+    - alert: PodCrashLooping
+      expr: rate(kube_pod_container_status_restarts_total[15m]) * 900 > 3
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} crash looping"
+        description: "Container {{ $labels.container }} restarted more than 3 times in the last 15m."
+        runbook: "see docs/runbooks/pod-crashlooping.md"
+
+    - alert: KubePodNotReady
+      expr: sum by(namespace, pod) (kube_pod_status_phase{phase=~"Pending|Unknown"}) > 0
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} not ready"
+        description: "Pod stuck in {{ $labels.phase }} phase for 15m. Usually scheduling or image pull."
+
+    - alert: DeploymentReplicasMismatch
+      expr: |
+        kube_deployment_spec_replicas
+        !=
+        kube_deployment_status_replicas_available
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} replicas mismatch"
+        description: "Wanted {{ $value }} replicas not available for 15m. Check rollout status and pod events."
