@@ -1,6 +1,6 @@
 # monitoring-dashboards
 
-Prometheus alerts and Grafana dashboards from clusters I've run. Nothing exotic — just the set I actually keep.
+Prometheus alerts and Grafana dashboards from clusters I've run. Nothing exotic - just the set I actually keep.
 
 ## Layout
 
@@ -24,8 +24,8 @@ docs/runbooks/
 # rules (needs prometheus-operator; plain prometheus: use the rule groups as-is in prometheus.yml)
 kubectl apply -f prometheus/
 
-# alertmanager — fill in the two placeholders first, then apply via your existing secret/configmap setup
-# grafana — Dashboards > Import, paste the JSON, pick your Prometheus datasource
+# alertmanager - fill in the two placeholders first, then apply via your existing secret/configmap setup
+# grafana - Dashboards > Import, paste the JSON, pick your Prometheus datasource
 ```
 
 ## Replace before using
